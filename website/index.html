@@ -8,8 +8,9 @@
 <!--
   The City Museum of Natural History's website, from the game LOCKED OUT (github.com/Hudsoonvid/Cs-game).
   The whole site is this one file: paste it into Google Sites (Insert, Embed, Embed code) as a full page.
-  The game on the home page is always the newest release. Photos and the staff area are written in by
-  tools/website.mjs (npm run website).
+  The whole game is packed into it too (the #gameData script near the end). tools/website.mjs (npm run website)
+  writes in the photos, the staff area and the game, and makes museum-website.html, the copy to paste. Every
+  release on GitHub has one.
   Reading the source? Open the console and type museum.secret()
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -402,12 +403,12 @@ body.torch .uv { cursor: pointer; }
         <span class="note pin">if the T. rex moves, it is NOT my fault<small>- night guard</small></span>
       </div>
       <div class="gb-bar">
-        <div class="gb-status"><span id="verText">Finding the newest version…</span> <span id="srcText"></span></div>
+        <div class="gb-status"><span id="verText">Unpacking…</span> <span id="srcText"></span></div>
         <div class="gb-actions">
           <button class="btn yellow" id="popBtn" disabled>Play in its own tab</button>
           <button class="btn" id="fullBtn" disabled>Full screen</button>
           <button class="btn" id="reloadBtn">Reload</button>
-          <a class="btn" href="https://github.com/Hudsoonvid/Cs-game/releases/latest/download/locked-out.html" target="_blank" rel="noopener">Download</a>
+          <button class="btn" id="dlBtn" disabled>Download</button>
         </div>
       </div>
       <div class="gb-more">
@@ -942,6 +943,7 @@ body.torch .uv { cursor: pointer; }
 <div class="modal" id="modal" hidden><div class="sheet" role="dialog" aria-modal="true"><button class="btn x" id="modalX">Close</button><div id="modalBody"></div></div></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="donut" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="#d9a066"/><circle cx="12" cy="12" r="8" fill="#ef7fae"/><circle cx="12" cy="12" r="3.2" fill="#f6efe0"/><path d="M7 9l1.4.6M15.5 7.4l-.4 1.4M16.8 13.6l-1.4.3M8.4 15.6l1.2-.8M11.6 5.8l.2 1.2" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/></symbol></svg>
 
+<script id="gameData" type="application/octet-stream">/*GAME*//*END*/</script>
 <script>
 (function () {
 'use strict';
@@ -1015,76 +1017,114 @@ function show(v, anchor) {
   if (v === 'egypt') watchSarcophagus();
 }
 
-// ============================================================== the game, from the newest release
-const REPO = 'Hudsoonvid/Cs-game';
-const params = new URLSearchParams(location.search);
-const TEST_BASE = window.CM_GAME_BASE || params.get('game'); // (testing against a local copy: ?game=http://localhost:8123/)
+// ============================================================== the game, packed into this page
+// tools/website.mjs packs the whole game into the #gameData script (gzipped, then base64), so the page
+// needs nothing from anywhere else to run it. A new version of the game means a new copy of this page.
+const GAME_VERSION = /*GAMEV*/""/*END*/;
 let gameDoc = null;
-async function getText(url, ms = 15000) {
-  const c = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const t = c && setTimeout(() => c.abort(), ms);
-  try {
-    const r = await fetch(url, c ? { signal: c.signal } : {});
-    if (!r.ok) throw new Error(`${r.status} for ${url}`);
-    return await r.text();
-  } finally { if (t) clearTimeout(t); }
+function gameBytes() {
+  const el = $('#gameData');
+  const b64 = el ? el.textContent.replace(/\/\*(GAME|END)\*\//g, '').trim() : '';
+  if (!b64) return null;
+  const bin = atob(b64), out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
-// the newest release's tag (kept for an hour, so a whole class on one network doesn't use up GitHub's 60 an hour)
-async function latestTag() {
-  const c = store.get('latest', null);
-  if (c && Date.now() - c.t < 3600e3 && c.tag) return c.tag;
-  const tries = [
-    async () => JSON.parse(await getText(`https://api.github.com/repos/${REPO}/releases/latest`, 8000)).tag_name,
-    async () => { const v = JSON.parse(await getText(`https://data.jsdelivr.com/v1/packages/gh/${REPO}/resolved?specifier=latest`, 8000)).version; return v && !/^v/.test(v) ? 'v' + v : v; },
-  ];
-  for (const t of tries) { try { const tag = await t(); if (tag) { store.set('latest', { tag, t: Date.now() }); return tag; } } catch (_) { /* next */ } }
-  return c && c.tag ? c.tag : null;
-}
-function sources(tag) {
-  if (TEST_BASE) return [{ name: 'a local copy', base: TEST_BASE.replace(/\/?$/, '/'), inline: false }];
-  return [
-    // jsDelivr serves the repo with the right file types, so the game's own <script src> tags just work
-    { name: 'jsDelivr', base: `https://cdn.jsdelivr.net/gh/${REPO}@${tag || 'latest'}/`, inline: false },
-    // GitHub's raw file server says every file is plain text, so the scripts and styles get written into the page
-    { name: 'GitHub', base: `https://raw.githubusercontent.com/${REPO}/${tag || 'main'}/`, inline: true },
-  ];
-}
-const safe = (s, tag) => s.replace(new RegExp(`</${tag}`, 'gi'), `<\\/${tag}`);
-// the site's settings for the game: no outside link to play it, and "Play in its own tab" comes back to this page
-// (it calls this page when it can, and posts a message when a locked-down frame keeps them apart)
-const CONFIG_JS = `window.LOCKED_OUT_CONFIG = Object.assign(window.LOCKED_OUT_CONFIG || {}, { playUrl: '', popout: window.parent !== window ? function () { try { if (window.parent.cmPopout) return window.parent.cmPopout(); } catch (e) { /* another origin */ } window.parent.postMessage({ cmPopout: 1 }, '*'); } : null });`;
-async function buildGameDoc() {
-  const tag = await latestTag();
-  $('#verText').textContent = tag ? `Version ${tag}` : 'The newest version';
-  let lastErr = null;
-  for (const src of sources(tag)) {
-    try {
-      $('#bootMsg').textContent = `Unlocking the exhibition (from ${src.name})…`;
-      let html = await getText(src.base + 'index.html');
-      if (!/id="boot-start"/.test(html)) throw new Error('that is not the game');
-      html = html.replace(/<head>/i, `<head><base href="${src.base}">`);
-      if (src.inline) {
-        const [css, cfg, js] = await Promise.all(['style.css', 'game-config.js', 'dist/game.js'].map((f) => getText(src.base + f, 30000)));
-        html = html.replace(/<link rel="stylesheet" href="style\.css">/, () => `<style>${safe(css, 'style')}</style>`)
-          .replace(/<script src="game-config\.js"><\/script>/, () => `<script>${safe(cfg, 'script')}<\/script><script>${CONFIG_JS}<\/script>`)
-          .replace(/<script src="dist\/game\.js"><\/script>/, () => `<script>${safe(js, 'script')}<\/script>`);
-      } else {
-        html = html.replace(/<script src="game-config\.js"><\/script>/, () => `<script src="game-config.js"><\/script><script>${CONFIG_JS}<\/script>`);
+// DEFLATE, for browsers too old for DecompressionStream (puff.c, in JavaScript)
+const LBASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
+const LEXT = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
+const DBASE = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];
+const DEXT = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13];
+function inflate(src) {
+  let pos = 0, bit = 0, n = 0, out = new Uint8Array(src.length * 2 + 1024);
+  const room = (k) => { if (n + k > out.length) { const o = new Uint8Array(Math.max(out.length * 2, n + k)); o.set(out); out = o; } };
+  const bits = (k) => {
+    let v = 0;
+    for (let i = 0; i < k; i++) {
+      if (pos >= src.length) throw new Error('the packed game is cut off');
+      v |= ((src[pos] >> bit) & 1) << i;
+      if (++bit === 8) { bit = 0; pos++; }
+    }
+    return v;
+  };
+  const table = (lens) => {
+    const count = new Uint16Array(16), off = new Uint16Array(16), sym = new Uint16Array(lens.length);
+    for (let s = 0; s < lens.length; s++) count[lens[s]]++;
+    count[0] = 0;
+    for (let l = 1; l < 16; l++) off[l] = off[l - 1] + count[l - 1];
+    for (let s = 0; s < lens.length; s++) if (lens[s]) sym[off[lens[s]]++] = s;
+    return { count, sym };
+  };
+  const decode = (h) => {
+    let code = 0, first = 0, index = 0;
+    for (let l = 1; l < 16; l++) {
+      code |= bits(1);
+      const c = h.count[l];
+      if (code - c < first) return h.sym[index + code - first];
+      index += c; first = (first + c) << 1; code <<= 1;
+    }
+    throw new Error('the packed game is damaged');
+  };
+  let last;
+  do {
+    last = bits(1);
+    const type = bits(2);
+    if (type === 0) {
+      if (bit) { bit = 0; pos++; }
+      const len = src[pos] | (src[pos + 1] << 8);
+      pos += 4;
+      room(len); out.set(src.subarray(pos, pos + len), n); n += len; pos += len;
+      continue;
+    }
+    let lit, dist;
+    if (type === 1) {
+      const l = new Uint8Array(288);
+      l.fill(8, 0, 144); l.fill(9, 144, 256); l.fill(7, 256, 280); l.fill(8, 280, 288);
+      lit = table(l); dist = table(new Uint8Array(30).fill(5));
+    } else if (type === 2) {
+      const nlen = bits(5) + 257, ndist = bits(5) + 1, ncode = bits(4) + 4;
+      const ORDER = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+      const cl = new Uint8Array(19);
+      for (let i = 0; i < ncode; i++) cl[ORDER[i]] = bits(3);
+      const ct = table(cl), lens = new Uint8Array(nlen + ndist);
+      for (let i = 0; i < nlen + ndist;) {
+        const s = decode(ct);
+        if (s < 16) { lens[i++] = s; continue; }
+        let v = 0, rep;
+        if (s === 16) { v = lens[i - 1]; rep = 3 + bits(2); } else if (s === 17) rep = 3 + bits(3); else rep = 11 + bits(7);
+        while (rep--) lens[i++] = v;
       }
-      gameDoc = html;
-      $('#srcText').textContent = `· loaded from ${src.name}`;
-      return html;
-    } catch (e) { lastErr = e; }
+      lit = table(lens.subarray(0, nlen)); dist = table(lens.subarray(nlen));
+    } else throw new Error('the packed game is damaged');
+    for (;;) {
+      const s = decode(lit);
+      if (s < 256) { room(1); out[n++] = s; } else if (s === 256) break;
+      else {
+        const len = LBASE[s - 257] + bits(LEXT[s - 257]), d = decode(dist), back = DBASE[d] + bits(DEXT[d]);
+        room(len);
+        for (let j = 0; j < len; j++, n++) out[n] = out[n - back];
+      }
+    }
+  } while (!last);
+  return out.subarray(0, n);
+}
+async function buildGameDoc() {
+  const gz = gameBytes();
+  if (!gz) throw new Error('this copy of the website has no game packed into it');
+  if (typeof DecompressionStream === 'function') {
+    try { return await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'))).text(); }
+    catch (_) { /* (the slow way, then) */ }
   }
-  throw lastErr || new Error('no source answered');
+  return new TextDecoder().decode(inflate(gz.subarray(10))); // (after the gzip header)
 }
 async function loadGame() {
-  $('#popBtn').disabled = $('#fullBtn').disabled = true;
+  $('#popBtn').disabled = $('#fullBtn').disabled = $('#dlBtn').disabled = true;
   $('#bootErr').hidden = true;
   const old = $('#frameInner iframe'); if (old) old.remove();
   $('#boot').hidden = false;
   try {
-    const html = gameDoc || await buildGameDoc();
+    if (!gameDoc) gameDoc = await buildGameDoc();
+    const html = gameDoc;
     const f = document.createElement('iframe');
     f.title = 'LOCKED OUT, the game';
     f.setAttribute('allow', 'autoplay; fullscreen');
@@ -1093,14 +1133,25 @@ async function loadGame() {
     $('#frameInner').append(f);
     f.addEventListener('load', () => { $('#boot').hidden = true; });
     setTimeout(() => { $('#boot').hidden = true; }, 6000);
-    $('#popBtn').disabled = $('#fullBtn').disabled = false;
+    $('#popBtn').disabled = $('#fullBtn').disabled = $('#dlBtn').disabled = false;
   } catch (e) {
     $('#bootMsg').textContent = 'The exhibition is locked. (Not the fun way.)';
     $('#verText').textContent = 'Not loaded';
     const err = $('#bootErr');
-    err.innerHTML = `This network couldn't reach jsDelivr or GitHub (${String(e.message || e).replace(/</g, '&lt;')}). Hit Reload, or <a href="https://github.com/Hudsoonvid/Cs-game/releases/latest/download/locked-out.html" target="_blank" rel="noopener">download the game</a> as one file.`;
+    err.innerHTML = `The game didn't unpack (${String(e.message || e).replace(/</g, '&lt;')}). Hit Reload. If it still won't go, <a href="https://github.com/Hudsoonvid/Cs-game/releases/latest" target="_blank" rel="noopener">the game is on GitHub</a> as one file.`;
     err.hidden = false;
   }
+}
+// "Download": the same game, as one file to keep
+function downloadGame() {
+  if (!gameDoc) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([gameDoc], { type: 'text/html' }));
+  a.download = `locked-out-${GAME_VERSION || 'game'}.html`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
 }
 // "Play in its own tab": write the same game page into a new tab, where nothing stops the mouse locking
 window.cmPopout = function () {
@@ -1451,7 +1502,10 @@ function init() {
   $('#menuBtn').addEventListener('click', () => { const n = $('#mainNav'); n.classList.toggle('open'); $('#menuBtn').setAttribute('aria-expanded', String(n.classList.contains('open'))); });
   $('#popBtn').addEventListener('click', () => window.cmPopout());
   $('#fullBtn').addEventListener('click', fullScreen);
-  $('#reloadBtn').addEventListener('click', () => { gameDoc = null; loadGame(); });
+  $('#reloadBtn').addEventListener('click', loadGame);
+  $('#dlBtn').addEventListener('click', downloadGame);
+  $('#verText').textContent = GAME_VERSION ? `Version ${GAME_VERSION}` : 'No game in this copy';
+  $('#srcText').textContent = GAME_VERSION ? '· built into this page' : '';
   $('#dinoBtn').addEventListener('click', tryDino);
   $('#dinoIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryDino(); });
   $('#romeBtn').addEventListener('click', tryRome);

@@ -1,8 +1,10 @@
 node_modules/
 *.map
 .DS_Store
-# the one-file build (npm run single) is attached to each GitHub release instead
+# the one-file build (npm run single) and the museum website with the game in it (npm run website)
+# are attached to each GitHub release instead
 locked-out.html
+museum-website.html
 dev-recorder.html
 cast-recorder.html
 # the website, put together by npm run site (Cloudflare builds it)

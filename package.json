@@ -11,7 +11,7 @@
     "recorder": "node --no-warnings tools/booth.mjs dev",
     "recorder:cast": "node --no-warnings tools/booth.mjs cast",
     "clips-todo": "node --no-warnings tools/booth.mjs --todo",
-    "website": "node tools/website.mjs",
+    "website": "npm run build && node tools/website.mjs",
     "dev": "esbuild src/main.js --bundle --format=iife --target=es2020 --sourcemap --outfile=dist/game.js --serve=8080 --servedir=. --watch"
   },
   "devDependencies": {

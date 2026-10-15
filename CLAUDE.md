@@ -33,3 +33,10 @@ line: `{ asset, hash, text, mime, size, at }`.
   see the clips there too.
 - Recorded lines only play when *Settings → Recorded voices* is on (`settings.recorded`, off by default);
   otherwise lines use the *Character voices* setting. Check a line plays with it turned on.
+
+## The museum website
+
+`museum-website.html` (built by `npm run website`, gitignored) is the museum website with the whole game packed
+in. The user pastes it into Google Sites; it must not load the game from anywhere else (no jsDelivr, GitHub or
+GitHub Pages). Every release gets one from the release workflow. **Whenever the game or the website changes,**
+run `npm run website` and send the user the new `museum-website.html` to paste in.

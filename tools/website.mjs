@@ -1,11 +1,16 @@
-// The museum website (website/index.html) is one file to paste into Google Sites. This writes three things
-// into it: the photos (website/photos/*.webp, taken inside the game), the answers to its puzzles (as hashes),
-// and the staff-only area (below, scrambled with the staff password), so reading the page's code gives none of
-// the secrets away. Run it after changing any of them: npm run website
+// The museum website is one file to paste into Google Sites. This writes four things into website/index.html:
+// the photos (website/photos/*.webp, taken inside the game), the answers to its puzzles (as hashes), the
+// staff-only area (below, scrambled with the staff password, so reading the page's code gives none of the
+// secrets away), and then the whole game, packed in (gzipped), which makes museum-website.html: the copy to
+// paste. website/index.html itself stays without the game, so the repo doesn't fill up with copies of it.
+//   npm run website   (builds the game first; every GitHub release gets a museum-website.html too)
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
+import { packGame } from './single-file.mjs';
 
 const root = new URL('../', import.meta.url);
 const page = new URL('website/index.html', root);
+const full = new URL('museum-website.html', root);
 const photoDir = new URL('website/photos/', root);
 
 // the same hash the page uses (cyrb53)
@@ -81,5 +86,20 @@ const swap = (name, value) => {
 swap('PHOTOS', JSON.stringify(photos));
 swap('ANSWERS', JSON.stringify(hashes));
 swap('STAFF', JSON.stringify(scramble(STAFF.trim(), ANSWERS.pw)));
+swap('GAMEV', '""');
+swap('GAME', '');
 writeFileSync(page, html);
 console.log(`wrote website/index.html: ${(html.length / 1024).toFixed(0)} KB (${Object.keys(photos).length} photos, staff area ${(STAFF.length / 1024).toFixed(1)} KB scrambled)`);
+
+// The game, the same as locked-out.html with the website's settings for it: no outside link to play it,
+// no "newer version" note (a new version comes with a new copy of the website), and "Play in its own tab"
+// comes back to the website (it calls the page when it can, and posts a message when a locked-down frame
+// keeps them apart).
+const SITE_CONFIG = `window.LOCKED_OUT_CONFIG = Object.assign(window.LOCKED_OUT_CONFIG || {}, { playUrl: '', checkUpdates: false, popout: window.parent !== window ? function () { try { if (window.parent.cmPopout) return window.parent.cmPopout(); } catch (e) { /* another origin */ } window.parent.postMessage({ cmPopout: 1 }, '*'); } : null });`;
+const version = 'v' + JSON.parse(readFileSync(new URL('package.json', root), 'utf8')).version;
+const game = packGame({ config: SITE_CONFIG }).html;
+const packed = gzipSync(game, { level: 9 }).toString('base64');
+swap('GAMEV', JSON.stringify(version));
+swap('GAME', packed);
+writeFileSync(full, html);
+console.log(`wrote museum-website.html: ${(Buffer.byteLength(html) / 1e6).toFixed(2)} MB, with the game (${version}, ${(Buffer.byteLength(game) / 1e6).toFixed(2)} MB) packed in`);

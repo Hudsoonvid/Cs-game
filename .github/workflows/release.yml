@@ -1,7 +1,9 @@
 # Makes a GitHub release for every game version. The version lives in package.json (the game shows it
 # in the menu corner). When a new version lands on main, this creates the release "vX.Y.Z" with the
 # notes from that version's section in CHANGELOG.md, and attaches the whole game as one file
-# (locked-out.html, see tools/single-file.mjs). If the release already has it, it does nothing.
+# (locked-out.html, see tools/single-file.mjs) and the museum website with the game packed in
+# (museum-website.html, see tools/website.mjs), the copy to paste into Google Sites. The website is put
+# together again on every push to main, so the newest release always has the newest website.
 name: Release
 
 on:
@@ -43,3 +45,11 @@ jobs:
           fi
           node tools/single-file.mjs
           gh release upload "$v" locked-out.html
+
+      - name: Attach the museum website, with this version of the game packed in
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="v$(node -p "require('./package.json').version")"
+          node tools/website.mjs
+          gh release upload "$v" museum-website.html --clobber
