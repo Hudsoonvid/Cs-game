@@ -33,3 +33,9 @@ line: `{ asset, hash, text, mime, size, at }`.
   see the clips there too.
 - Recorded lines only play when *Settings → Recorded voices* is on (`settings.recorded`, off by default);
   otherwise lines use the *Character voices* setting. Check a line plays with it turned on.
+
+## Credits on GitHub
+
+The user doesn't want Claude showing up on GitHub. Don't add `Co-Authored-By`, `Claude-Session` or any other
+Claude or Claude Code lines to commit messages, and no "Generated with Claude Code" line or session link in pull
+request descriptions. Only comment on GitHub when it's really needed.
